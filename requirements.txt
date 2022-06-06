@@ -1,0 +1,3 @@
+pycryptodome
+pyside2
+sm4
