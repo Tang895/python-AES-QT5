@@ -1,5 +1,4 @@
-from audioop import add
-import Crypto
+
 from sm4 import SM4Key
 from PySide2.QtWidgets import *
 from PySide2.QtUiTools import QUiLoader
@@ -112,14 +111,15 @@ def click_Toencry_Thread(**args):
         #addData=(16-(filesize%16))*b'\0'#要添加到后面的数据
         #addDataLeng=len(addData) #这里使用PKCS5 padding 后面添加N个N
         if(addDataLeng==16):
-            addData=16*b'\f'
+            #16=0x10,这里需要特殊处理一下
+            addData=16*b'\x10'
         else:
             addData=hex(addDataLeng)[2:] #去掉0x
             addData='0'+addData
             addData=bytes.fromhex(addData)
             addData=addData*addDataLeng #这里使用PKCS5 padding 后面添加N个N
         #print(addData)
-
+        a.show_Text("filesize:"+str(filesize))
         progressBarValue=0
         #先迭代前面的数据，大于1MB的数据
         for i in range(0,ite_1MB):
@@ -172,11 +172,17 @@ def click_Todecry_Thread(**args):
         filesize=os.path.getsize(input)#获取文件长度，bytes
 
         ite_1MB=filesize//spliteSize#获得1024*1024分片的迭代次数
-        if(ite_1MB>0):
-            #当1MB迭代次数大于1时,减去一个，防止加密时padding之后刚好为1MB的倍数。
-            ite_1MB-=1
-
         ite_16bytes=(filesize%spliteSize)//16#获得16分片的迭代次数
+        if(ite_16bytes==0):
+            #这里防止解密数据刚好是1MB的倍数
+            if(ite_1MB==0):
+                #如果这里1MB的迭代次数==0，说明这个文件大小为0，出错
+                a.show_Text("Error! the file has no data?")
+                return
+            ite_1MB-=1
+            ite_16bytes+=1024*1024 #将减去的迭代次数加在16bytes上
+
+        
         sum_ite=ite_16bytes+ite_1MB#总的迭代次数，用于显示进度条
         a.set_ProgressBar_Max(sum_ite+1)#设定进度条最大值
         progressBarValue=0
@@ -189,7 +195,7 @@ def click_Todecry_Thread(**args):
             progressBarValue+=1
         
         for i in range(0,ite_16bytes-1):
-            #这个循环必进
+            #这个循环不一定进，迭代次数减一，剪出来的有padding所以特殊处理
             one_encry_chars=decring_file.read(16)#一次加密读取的数据
             encrypted_content=cipher.decrypt(one_encry_chars)
             save_file.write(encrypted_content)#写入一次的数据
