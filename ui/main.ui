@@ -19,7 +19,7 @@
    </font>
   </property>
   <property name="windowTitle">
-   <string>唐义军的信安综合课设</string>
+   <string>python加解密软件</string>
   </property>
   <widget class="QPushButton" name="exit_button">
    <property name="geometry">

@@ -1,3 +1,4 @@
+from audioop import add
 import Crypto
 from sm4 import SM4Key
 from PySide2.QtWidgets import *
@@ -106,7 +107,19 @@ def click_Toencry_Thread(**args):
         ite_16bytes=(filesize%spliteSize)//16#获得16分片的迭代次数
         sum_ite=ite_16bytes+ite_1MB#总的迭代次数，用于显示进度条
         a.set_ProgressBar_Max(sum_ite+1)#设定进度条最大值
-        addData=(16-(filesize%16))*b'\0'#要添加到后面的数据
+
+        addDataLeng=16-(filesize%16)
+        #addData=(16-(filesize%16))*b'\0'#要添加到后面的数据
+        #addDataLeng=len(addData) #这里使用PKCS5 padding 后面添加N个N
+        if(addDataLeng==16):
+            addData=16*b'\f'
+        else:
+            addData=hex(addDataLeng)[2:] #去掉0x
+            addData='0'+addData
+            addData=bytes.fromhex(addData)
+            addData=addData*addDataLeng #这里使用PKCS5 padding 后面添加N个N
+        #print(addData)
+
         progressBarValue=0
         #先迭代前面的数据，大于1MB的数据
         for i in range(0,ite_1MB):
@@ -159,6 +172,10 @@ def click_Todecry_Thread(**args):
         filesize=os.path.getsize(input)#获取文件长度，bytes
 
         ite_1MB=filesize//spliteSize#获得1024*1024分片的迭代次数
+        if(ite_1MB>0):
+            #当1MB迭代次数大于1时,减去一个，防止加密时padding之后刚好为1MB的倍数。
+            ite_1MB-=1
+
         ite_16bytes=(filesize%spliteSize)//16#获得16分片的迭代次数
         sum_ite=ite_16bytes+ite_1MB#总的迭代次数，用于显示进度条
         a.set_ProgressBar_Max(sum_ite+1)#设定进度条最大值
@@ -171,13 +188,21 @@ def click_Todecry_Thread(**args):
             a.set_ProgressBar_value(progressBarValue)
             progressBarValue+=1
         
-        for i in range(0,ite_16bytes):
+        for i in range(0,ite_16bytes-1):
+            #这个循环必进
             one_encry_chars=decring_file.read(16)#一次加密读取的数据
             encrypted_content=cipher.decrypt(one_encry_chars)
             save_file.write(encrypted_content)#写入一次的数据
             progressBarValue+=1
             a.set_ProgressBar_value(progressBarValue)
-            #对于解密来说，这个循环结束一定完成所有文件的处理
+        #对最后一行进行特殊处理，因为这里有padding
+        one_encry_chars=decring_file.read(16)#一次加密读取的数据
+        encrypted_content=cipher.decrypt(one_encry_chars)
+        subdataLeng=encrypted_content[15] #要减去的字节个数，看最后一个字节是什么（PKCS5 padding）
+        encrypted_content=encrypted_content[:16-subdataLeng]
+        save_file.write(encrypted_content)#写入一次的数据
+        progressBarValue+=1
+        a.set_ProgressBar_value(progressBarValue)
         a.set_ProgressBar_value(progressBarValue+1)#进度条100%
         a.show_Text("解密成功，文件保存在"+filenamesplit[0]+"/decriedfile_"+outputFileName)
 
