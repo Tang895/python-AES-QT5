@@ -31,6 +31,7 @@ class decryThread(QThread):
 def decry_thread():
     #启动解密的线程的函数
     aa=decryThread()
+    #aa.start()
     aa.run()
 class Mw():
     def __init__(self):
@@ -81,65 +82,68 @@ def click_Toencry_Thread(**args):
             a.show_Text("请先输入密码")
             return -1
         password=md5(password)
-        input=QFileDialog.getOpenFileName()[0]
-        if(input==''):#用户取消
+        files=QFileDialog.getOpenFileNames()[0]
+        if(len(files) == 0):#用户取消
             return 0
-        #获取文件的名字
-        filenamesplit=os.path.split(input)
-        filename=filenamesplit[1]
-        #获取/设定输出文件的名字
-        outputFileName = a.get_input_text()
-        if outputFileName!='':
-            outputFileName=a.get_input_text()+".encry"
-        else:
-            outputFileName=filename+".encry"
-        save_file=open(filenamesplit[0]+"/"+outputFileName,"wb")#保存文件的路径
-        if(AES_Checked):
-            cipher=AES.new(password,AES.MODE_ECB)#ECB不需要向量
-        else:
-            cipher=SM4Key(password)#SM4默认ECB模式,这里不使用ECB模式
-        spliteSize=1024*1024#文件分片大小，默认1024*1024,最大1MB,最后一个设定16bytes
-        #读取文件16进制
-        encring_file=open(input,'rb')
-        filesize=os.path.getsize(input)#获取文件长度，bytes
-        ite_1MB=filesize//spliteSize#获得1024*1024分片的迭代次数
-        ite_16bytes=(filesize%spliteSize)//16#获得16分片的迭代次数
-        sum_ite=ite_16bytes+ite_1MB#总的迭代次数，用于显示进度条
-        a.set_ProgressBar_Max(sum_ite+1)#设定进度条最大值
+        for input in files:
+            #获取文件的名字
+            filenamesplit=os.path.split(input)
+            filename=filenamesplit[1]
+            #获取/设定输出文件的名字
+            outputFileName = a.get_input_text()
+            if outputFileName!='':
+                outputFileName=a.get_input_text()+".encry"
+            else:
+                outputFileName=filename+".encry"
+            save_file=open(filenamesplit[0]+"/"+outputFileName,"wb")#保存文件的路径
+            if(AES_Checked):
+                cipher=AES.new(password,AES.MODE_ECB)#ECB不需要向量
+            else:
+                cipher=SM4Key(password)#SM4默认ECB模式,这里不使用ECB模式
+            spliteSize=1024*1024#文件分片大小，默认1024*1024,最大1MB,最后一个设定16bytes
+            #读取文件16进制
+            encring_file=open(input,'rb')
+            filesize=os.path.getsize(input)#获取文件长度，bytes
+            ite_1MB=filesize//spliteSize#获得1024*1024分片的迭代次数
+            ite_16bytes=(filesize%spliteSize)//16#获得16分片的迭代次数
+            sum_ite=ite_16bytes+ite_1MB#总的迭代次数，用于显示进度条
+            a.set_ProgressBar_Max(sum_ite+1)#设定进度条最大值
 
-        addDataLeng=16-(filesize%16)
-        #addData=(16-(filesize%16))*b'\0'#要添加到后面的数据
-        #addDataLeng=len(addData) #这里使用PKCS5 padding 后面添加N个N
-        if(addDataLeng==16):
-            #16=0x10,这里需要特殊处理一下
-            addData=16*b'\x10'
-        else:
-            addData=hex(addDataLeng)[2:] #去掉0x
-            addData='0'+addData
-            addData=bytes.fromhex(addData)
-            addData=addData*addDataLeng #这里使用PKCS5 padding 后面添加N个N
-        #print(addData)
-        a.show_Text("filesize:"+str(filesize))
-        progressBarValue=0
-        #先迭代前面的数据，大于1MB的数据
-        for i in range(0,ite_1MB):
-            one_encry_chars=encring_file.read(spliteSize)#一次加密读取的数据
+            addDataLeng=16-(filesize%16)
+            #addData=(16-(filesize%16))*b'\0'#要添加到后面的数据
+            #addDataLeng=len(addData) #这里使用PKCS5 padding 后面添加N个N
+            if(addDataLeng==16):
+                #16=0x10,这里需要特殊处理一下
+                addData=16*b'\x10'
+            else:
+                addData=hex(addDataLeng)[2:] #去掉0x
+                addData='0'+addData
+                addData=bytes.fromhex(addData)
+                addData=addData*addDataLeng #这里使用PKCS5 padding 后面添加N个N
+            #print(addData)
+            a.show_Text("filesize:"+str(filesize))
+            progressBarValue=0
+            #先迭代前面的数据，大于1MB的数据
+            for _ in range(0,ite_1MB):
+                one_encry_chars=encring_file.read(spliteSize)#一次加密读取的数据
+                encrypted_content=cipher.encrypt(one_encry_chars)
+                save_file.write(encrypted_content)#写入一次的数据
+                a.set_ProgressBar_value(progressBarValue)
+                progressBarValue+=1
+            for _ in range(0,ite_16bytes):
+                one_encry_chars=encring_file.read(16)#一次加密读取的数据
+                encrypted_content=cipher.encrypt(one_encry_chars)
+                save_file.write(encrypted_content)#写入一次的数据
+                progressBarValue+=1
+                a.set_ProgressBar_value(progressBarValue)
+            one_encry_chars=encring_file.read(16)#最后一次读取，可能是0，但仍加addData
+            one_encry_chars+=addData
             encrypted_content=cipher.encrypt(one_encry_chars)
-            save_file.write(encrypted_content)#写入一次的数据
-            a.set_ProgressBar_value(progressBarValue)
-            progressBarValue+=1
-        for i in range(0,ite_16bytes):
-            one_encry_chars=encring_file.read(16)#一次加密读取的数据
-            encrypted_content=cipher.encrypt(one_encry_chars)
-            save_file.write(encrypted_content)#写入一次的数据
-            progressBarValue+=1
-            a.set_ProgressBar_value(progressBarValue)
-        one_encry_chars=encring_file.read(16)#最后一次读取，可能是0，但仍加addData
-        one_encry_chars+=addData
-        encrypted_content=cipher.encrypt(one_encry_chars)
-        save_file.write(encrypted_content)#写入最后一次的数据
-        a.set_ProgressBar_value(progressBarValue+1)#进度条100%
-        a.show_Text("加密成功，文件保存在"+filenamesplit[0]+"/"+outputFileName)  
+            save_file.write(encrypted_content)#写入最后一次的数据
+            save_file.close()
+            encring_file.close()
+            a.set_ProgressBar_value(progressBarValue+1)#进度条100%
+            a.show_Text("加密成功，文件保存在"+filenamesplit[0]+"/"+outputFileName)  
 
 #解密的线程
 def click_Todecry_Thread(**args):
@@ -151,66 +155,70 @@ def click_Todecry_Thread(**args):
             return -1
         password=md5(password)
         #input=tkinter.filedialog.askopenfilename()#完整的路径
-        input=QFileDialog.getOpenFileName()[0]
-        if(input==''):
+        files=QFileDialog.getOpenFileNames()[0]
+        if(len(files)==0):
             #用户取消
             return 0
-        print(input)
-        #获取文件的名字
-        filenamesplit=os.path.split(input)
-        filename=filenamesplit[1]
-        #获取/设定输出文件的名字
-        outputFileName=filename[:-6]
-        save_file=open(filenamesplit[0]+"/decriedfile_"+outputFileName,"wb")#保存文件的路径
-        if(AES_Checked):
-            cipher=AES.new(password,AES.MODE_ECB)#ECB不需要向量
-        else:
-            cipher=SM4Key(password)
-        spliteSize=1024*1024#文件分片大小，默认1024*1024
-        #读取文件16进制
-        decring_file=open(input,'rb')
-        filesize=os.path.getsize(input)#获取文件长度，bytes
+        for input in files:
 
-        ite_1MB=filesize//spliteSize#获得1024*1024分片的迭代次数
-        ite_16bytes=(filesize%spliteSize)//16#获得16分片的迭代次数
-        if(ite_16bytes==0):
-            #这里防止解密数据刚好是1MB的倍数
-            if(ite_1MB==0):
-                #如果这里1MB的迭代次数==0，说明这个文件大小为0，出错
-                a.show_Text("Error! the file has no data?")
-                return
-            ite_1MB-=1
-            ite_16bytes+=1024*1024 #将减去的迭代次数加在16bytes上
+            print(input)
+            #获取文件的名字
+            filenamesplit=os.path.split(input)
+            filename=filenamesplit[1]
+            #获取/设定输出文件的名字
+            outputFileName=filename[:-6]
+            save_file=open(filenamesplit[0]+"/decriedfile_"+outputFileName,"wb")#保存文件的路径
+            if(AES_Checked):
+                cipher=AES.new(password,AES.MODE_ECB)#ECB不需要向量
+            else:
+                cipher=SM4Key(password)
+            spliteSize=1024*1024#文件分片大小，默认1024*1024
+            #读取文件16进制
+            decring_file=open(input,'rb')
+            filesize=os.path.getsize(input)#获取文件长度，bytes
 
-        
-        sum_ite=ite_16bytes+ite_1MB#总的迭代次数，用于显示进度条
-        a.set_ProgressBar_Max(sum_ite+1)#设定进度条最大值
-        progressBarValue=0
-        #先迭代前面的数据，大于1MB的数据
-        for i in range(0,ite_1MB):
-            one_encry_chars=decring_file.read(spliteSize)#一次加密读取的数据
-            encrypted_content=cipher.decrypt(one_encry_chars)
-            save_file.write(encrypted_content)#写入一次的数据
-            a.set_ProgressBar_value(progressBarValue)
-            progressBarValue+=1
-        
-        for i in range(0,ite_16bytes-1):
-            #这个循环不一定进，迭代次数减一，剪出来的有padding所以特殊处理
+            ite_1MB=filesize//spliteSize#获得1024*1024分片的迭代次数
+            ite_16bytes=(filesize%spliteSize)//16#获得16分片的迭代次数
+            if(ite_16bytes==0):
+                #这里防止解密数据刚好是1MB的倍数
+                if(ite_1MB==0):
+                    #如果这里1MB的迭代次数==0，说明这个文件大小为0，出错
+                    a.show_Text("Error! the file has no data?")
+                    return
+                ite_1MB-=1
+                ite_16bytes+=1024*1024 #将减去的迭代次数加在16bytes上
+
+            
+            sum_ite=ite_16bytes+ite_1MB#总的迭代次数，用于显示进度条
+            a.set_ProgressBar_Max(sum_ite+1)#设定进度条最大值
+            progressBarValue=0
+            #先迭代前面的数据，大于1MB的数据
+            for _ in range(0,ite_1MB):
+                one_encry_chars=decring_file.read(spliteSize)#一次加密读取的数据
+                encrypted_content=cipher.decrypt(one_encry_chars)
+                save_file.write(encrypted_content)#写入一次的数据
+                a.set_ProgressBar_value(progressBarValue)
+                progressBarValue+=1
+            
+            for _ in range(0,ite_16bytes-1):
+                #这个循环不一定进，迭代次数减一，剪出来的有padding所以特殊处理
+                one_encry_chars=decring_file.read(16)#一次加密读取的数据
+                encrypted_content=cipher.decrypt(one_encry_chars)
+                save_file.write(encrypted_content)#写入一次的数据
+                progressBarValue+=1
+                a.set_ProgressBar_value(progressBarValue)
+            #对最后一行进行特殊处理，因为这里有padding
             one_encry_chars=decring_file.read(16)#一次加密读取的数据
             encrypted_content=cipher.decrypt(one_encry_chars)
+            subdataLeng=encrypted_content[15] #要减去的字节个数，看最后一个字节是什么（PKCS5 padding）
+            encrypted_content=encrypted_content[:16-subdataLeng]
             save_file.write(encrypted_content)#写入一次的数据
+            save_file.close()
+            decring_file.close()
             progressBarValue+=1
             a.set_ProgressBar_value(progressBarValue)
-        #对最后一行进行特殊处理，因为这里有padding
-        one_encry_chars=decring_file.read(16)#一次加密读取的数据
-        encrypted_content=cipher.decrypt(one_encry_chars)
-        subdataLeng=encrypted_content[15] #要减去的字节个数，看最后一个字节是什么（PKCS5 padding）
-        encrypted_content=encrypted_content[:16-subdataLeng]
-        save_file.write(encrypted_content)#写入一次的数据
-        progressBarValue+=1
-        a.set_ProgressBar_value(progressBarValue)
-        a.set_ProgressBar_value(progressBarValue+1)#进度条100%
-        a.show_Text("解密成功，文件保存在"+filenamesplit[0]+"/decriedfile_"+outputFileName)
+            a.set_ProgressBar_value(progressBarValue+1)#进度条100%
+            a.show_Text("解密成功，文件保存在"+filenamesplit[0]+"/decriedfile_"+outputFileName)
 
 
 app.exec_() #暂停
